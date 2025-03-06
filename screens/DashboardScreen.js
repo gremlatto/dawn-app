@@ -1,46 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import tw from 'twrnc';
-
-const DashboardItem = ({ icon, title, value, isVisible = true }) => {
-  if (!isVisible) return null;
-  return (
-    <View style={tw`flex-row items-center p-4 bg-[#1A1A1A]/20 rounded-xl mb-4`}>
-      <Feather name={icon} size={24} color="#D3C4A5" />
-      <View style={tw`ml-4`}>
-        <Text style={tw`text-[#D3C4A5] text-lg font-medium`}>{title}</Text>
-        <Text style={tw`text-[#D3C4A5] text-base`}>{value}</Text>
-      </View>
-    </View>
-  );
-};
-
-const SunMoonIcon = () => {
-  const [isDay, setIsDay] = useState(false);
-
-  useEffect(() => {
-    const checkTime = () => {
-      const hour = new Date().getHours();
-      setIsDay(hour >= 6 && hour < 18);
-    };
-    checkTime();
-    const interval = setInterval(checkTime, 60000); // Check every minute
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <View style={tw`items-center justify-center w-24 h-24 mb-8`}>
-      <Feather 
-        name={isDay ? 'sun' : 'moon'} 
-        size={64} 
-        color="#D3C4A5" 
-      />
-    </View>
-  );
-};
+import DashboardItem from '../components/DashboardItem'; // Import DashboardItem
+import SunMoonIcon from '../components/SunMoonIcon'; // Already correct
 
 export default function DashboardScreen({ navigation }) {
   const [visibleItems, setVisibleItems] = useState({
@@ -137,7 +101,7 @@ export default function DashboardScreen({ navigation }) {
 
         <TouchableOpacity
           style={tw`bg-[#D3C4A5] p-4 rounded-xl mt-6`}
-          onPress={() => navigation.navigate('Gratitude')}
+          onPress={() => navigation.navigate('GratitudeScreen')}
         >
           <Text style={tw`text-[#1A1A1A] text-center text-lg font-medium`}>
             Log Gratitude
@@ -146,4 +110,4 @@ export default function DashboardScreen({ navigation }) {
       </ScrollView>
     </LinearGradient>
   );
-} 
+}
