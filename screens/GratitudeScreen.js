@@ -1,200 +1,125 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { Feather } from '@expo/vector-icons';
+import { collection, addDoc, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 import tw from 'twrnc';
-
-// Initialize Firebase (replace with your config)
-const firebaseConfig = {
-  // Your Firebase config here
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-const GratitudeGrid = ({ entries }) => {
-  const days = Array.from({ length: 30 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    return date;
-  }).reverse();
-
-  return (
-    <View style={tw`flex-row flex-wrap justify-between p-4`}>
-      {days.map((date, index) => {
-        const hasEntry = entries.some(entry => 
-          new Date(entry.timestamp.toDate()).toDateString() === date.toDateString()
-        );
-        
-        return (
-          <View
-            key={index}
-            style={[
-              tw`w-8 h-8 m-1 rounded-sm`,
-              { backgroundColor: hasEntry ? '#D3C4A5' : '#F5E8C7' }
-            ]}
-          />
-        );
-      })}
-    </View>
-  );
-};
 
 export default function GratitudeScreen({ navigation }) {
   const [gratitudeText, setGratitudeText] = useState('');
   const [entries, setEntries] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  const userId = "mock-user"; // Mock user ID
 
-  useEffect(() => {
-    fetchEntries();
-    // Set up navigation header
-    navigation.setOptions({
-      headerLeft: () => (
-        <TouchableOpacity 
-          onPress={() => navigation.goBack()}
-          style={tw`ml-4`}
-        >
-          <Feather name="arrow-left" size={24} color="#D3C4A5" />
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation]);
-
+  // Function to fetch entries from Firestore
   const fetchEntries = async () => {
     try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const q = query(
-        collection(db, 'gratitude'),
-        where('userId', '==', 'mock-user'),
-        orderBy('timestamp', 'desc')
+        collection(db, 'gratitudeEntries'),
+        where('userId', '==', userId),
+        where('timestamp', '>=', Timestamp.fromDate(thirtyDaysAgo))
       );
       const querySnapshot = await getDocs(q);
       const fetchedEntries = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        timestamp: doc.data().timestamp.toDate()
       }));
       setEntries(fetchedEntries);
+      console.log('Fetched entries:', fetchedEntries);
     } catch (error) {
-      console.error('Error fetching entries:', error);
+      console.error('Error fetching gratitude entries:', error.message);
     }
   };
 
-  const handleSubmit = async () => {
+  // Fetch entries on mount
+  useEffect(() => {
+    fetchEntries();
+  }, []);
+
+  // Save gratitude entry to Firestore and re-fetch entries
+  const saveGratitude = async () => {
     if (gratitudeText.length < 5) {
-      Alert.alert('Too Short', 'Please enter at least 5 characters.');
+      Alert.alert('Error', 'Gratitude entry must be at least 5 characters long.');
+      console.log('Entry too short:', gratitudeText);
       return;
     }
-
-    setIsLoading(true);
     try {
-      await addDoc(collection(db, 'gratitude'), {
+      console.log('Saving entry:', gratitudeText);
+      const docRef = await addDoc(collection(db, 'gratitudeEntries'), {
         text: gratitudeText,
-        timestamp: new Date(),
-        userId: 'mock-user'
+        timestamp: Timestamp.fromDate(new Date()),
+        userId: userId
       });
+      console.log('Entry saved successfully, docRef:', docRef.id);
       setGratitudeText('');
-      setIsUnlocked(true);
-      fetchEntries();
+      Alert.alert('Success', 'Gratitude entry saved!');
+      // Re-fetch entries to update the grid
+      await fetchEntries();
+      setTimeout(() => navigation.navigate('DashboardScreen'), 100);
     } catch (error) {
-      console.error('Error adding entry:', error);
-      Alert.alert('Error', 'Failed to save your gratitude entry.');
-    } finally {
-      setIsLoading(false);
+      console.error('Error saving gratitude entry:', error.message);
+      Alert.alert('Error', `Failed to save gratitude entry: ${error.message}`);
     }
   };
 
-  if (!isUnlocked) {
-    return (
-      <LinearGradient
-        colors={['#1A1A1A', '#F5E8C7']}
-        style={tw`flex-1`}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-      >
-        <View style={tw`flex-1 p-6 justify-center`}>
-          <Text style={tw`text-[#D3C4A5] text-2xl font-bold mb-2 text-center`}>
-            Unlock Your Gratitude
-          </Text>
-          <Text style={tw`text-[#D3C4A5] text-base mb-6 text-center`}>
-            Share what you're grateful for to unlock your history
-          </Text>
-          
-          <TextInput
-            style={tw`bg-[#1A1A1A]/20 p-4 rounded-xl text-[#D3C4A5] text-lg mb-4`}
-            placeholder="Enter your gratitude..."
-            placeholderTextColor="#D3C4A5"
-            value={gratitudeText}
-            onChangeText={setGratitudeText}
-            multiline
-            numberOfLines={4}
-          />
+  // Generate 30-day grid
+  const generateGrid = () => {
+    const grid = [];
+    const today = new Date();
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const hasEntry = entries.some(entry => 
+        entry.timestamp.toISOString().split('T')[0] === dateStr
+      );
+      grid.push({
+        date: dateStr,
+        hasEntry
+      });
+    }
+    return grid;
+  };
 
-          <TouchableOpacity
-            style={tw`bg-[#D3C4A5] p-4 rounded-xl`}
-            onPress={handleSubmit}
-            disabled={isLoading}
-          >
-            <Text style={tw`text-[#1A1A1A] text-center text-lg font-medium`}>
-              {isLoading ? 'Saving...' : 'Unlock History'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
-    );
-  }
+  const gridData = generateGrid();
 
   return (
-    <LinearGradient
-      colors={['#1A1A1A', '#F5E8C7']}
-      style={tw`flex-1`}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-    >
-      <ScrollView style={tw`flex-1 p-6`}>
-        <View style={tw`mb-8`}>
-          <Text style={tw`text-[#D3C4A5] text-2xl font-bold mb-2`}>
-            What are you grateful for?
-          </Text>
-          <Text style={tw`text-[#D3C4A5] text-base mb-4`}>
-            Share your gratitude (minimum 5 characters)
-          </Text>
-          
-          <TextInput
-            style={tw`bg-[#1A1A1A]/20 p-4 rounded-xl text-[#D3C4A5] text-lg`}
-            placeholder="Enter your gratitude..."
-            placeholderTextColor="#D3C4A5"
-            value={gratitudeText}
-            onChangeText={setGratitudeText}
-            multiline
-            numberOfLines={4}
-          />
+    <View style={tw`flex-1 bg-[#F5E8C7] p-6`}>
+      <TouchableOpacity
+        style={tw`mb-6`}
+        onPress={() => navigation.navigate('DashboardScreen')}
+      >
+        <Text style={tw`text-[#1A1A1A] text-lg`}>← Back to Dashboard</Text>
+      </TouchableOpacity>
 
-          <TouchableOpacity
-            style={tw`bg-[#D3C4A5] p-4 rounded-xl mt-4`}
-            onPress={handleSubmit}
-            disabled={isLoading}
-          >
-            <Text style={tw`text-[#1A1A1A] text-center text-lg font-medium`}>
-              {isLoading ? 'Saving...' : 'Save Gratitude'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+      <Text style={tw`text-[#1A1A1A] text-2xl font-bold mb-4`}>Log Your Gratitude</Text>
+      <TextInput
+        style={tw`bg-white rounded-xl p-4 mb-4 text-[#1A1A1A] text-base border border-[#D3C4A5]`}
+        placeholder="What are you grateful for today?"
+        placeholderTextColor="#D3C4A5"
+        value={gratitudeText}
+        onChangeText={setGratitudeText}
+        multiline
+      />
+      <TouchableOpacity
+        style={tw`bg-[#D3C4A5] p-4 rounded-xl mb-6`}
+        onPress={saveGratitude}
+      >
+        <Text style={tw`text-[#1A1A1A] text-center text-lg font-medium`}>Save Gratitude</Text>
+      </TouchableOpacity>
 
-        <View style={tw`mt-8`}>
-          <Text style={tw`text-[#D3C4A5] text-xl font-bold mb-4`}>
-            Your Gratitude History
-          </Text>
-          <GratitudeGrid entries={entries} />
+      <Text style={tw`text-[#1A1A1A] text-xl font-bold mb-4`}>Past 30 Days</Text>
+      <ScrollView horizontal>
+        <View style={tw`flex-row flex-wrap`}>
+          {gridData.map((day, index) => (
+            <View
+              key={index}
+              style={tw`w-8 h-8 m-1 rounded ${day.hasEntry ? 'bg-[#D3C4A5]' : 'bg-[#F5E8C7]'} border border-[#D3C4A5]`}
+            />
+          ))}
         </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
-} 
+}
