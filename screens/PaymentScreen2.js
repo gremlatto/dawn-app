@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
 import { colors } from '../utils/colors';
 
-export default function PaymentScreen() {
+export default function PaymentScreen2() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>

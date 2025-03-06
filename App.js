@@ -1,14 +1,15 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { AppRegistry } from 'react-native';
 
-import PaymentScreen from './screens/PaymentScreen';
+import PaymentScreen2 from './screens/PaymentScreen2';
 import DashboardScreen from './screens/DashboardScreen';
 import GratitudeScreen from './screens/GratitudeScreen';
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
-export default function App() {
+function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator 
@@ -17,10 +18,14 @@ export default function App() {
           headerShown: false
         }}
       >
-        <Stack.Screen name="Payment" component={PaymentScreen} />
+        <Stack.Screen name="Payment" component={PaymentScreen2} />
         <Stack.Screen name="Dashboard" component={DashboardScreen} />
         <Stack.Screen name="Gratitude" component={GratitudeScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
-} 
+}
+
+AppRegistry.registerComponent('main', () => App);
+
+export default App; 
