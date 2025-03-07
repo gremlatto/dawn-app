@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, FlatList } from 'react-native';
 import { collection, addDoc, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import tw from 'twrnc';
@@ -7,9 +7,8 @@ import tw from 'twrnc';
 export default function GratitudeScreen({ navigation }) {
   const [gratitudeText, setGratitudeText] = useState('');
   const [entries, setEntries] = useState([]);
-  const userId = "mock-user"; // Mock user ID
+  const userId = "mock-user";
 
-  // Function to fetch entries from Firestore
   const fetchEntries = async () => {
     try {
       const thirtyDaysAgo = new Date();
@@ -26,22 +25,18 @@ export default function GratitudeScreen({ navigation }) {
         timestamp: doc.data().timestamp.toDate()
       }));
       setEntries(fetchedEntries);
-      console.log('Fetched entries:', fetchedEntries);
     } catch (error) {
       console.error('Error fetching gratitude entries:', error.message);
     }
   };
 
-  // Fetch entries on mount
   useEffect(() => {
     fetchEntries();
   }, []);
 
-  // Save gratitude entry to Firestore and re-fetch entries
   const saveGratitude = async () => {
     if (gratitudeText.length < 5) {
       Alert.alert('Error', 'Gratitude entry must be at least 5 characters long.');
-      console.log('Entry too short:', gratitudeText);
       return;
     }
     try {
@@ -54,7 +49,6 @@ export default function GratitudeScreen({ navigation }) {
       console.log('Entry saved successfully, docRef:', docRef.id);
       setGratitudeText('');
       Alert.alert('Success', 'Gratitude entry saved!');
-      // Re-fetch entries to update the grid
       await fetchEntries();
       setTimeout(() => navigation.navigate('DashboardScreen'), 100);
     } catch (error) {
@@ -63,26 +57,54 @@ export default function GratitudeScreen({ navigation }) {
     }
   };
 
-  // Generate 30-day grid
   const generateGrid = () => {
     const grid = [];
     const today = new Date();
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 29);
+
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
       const dateStr = date.toISOString().split('T')[0];
       const hasEntry = entries.some(entry => 
         entry.timestamp.toISOString().split('T')[0] === dateStr
       );
       grid.push({
         date: dateStr,
-        hasEntry
+        hasEntry,
+        isInRange: true
       });
     }
-    return grid;
+
+    const firstDayOfWeek = startDate.getDay();
+    const paddingBefore = firstDayOfWeek;
+    const paddingAfter = 35 - (paddingBefore + 30);
+    const paddedGrid = [];
+
+    for (let i = 0; i < paddingBefore; i++) {
+      paddedGrid.push({
+        date: '',
+        hasEntry: false,
+        isInRange: false
+      });
+    }
+
+    paddedGrid.push(...grid);
+
+    for (let i = 0; i < paddingAfter; i++) {
+      paddedGrid.push({
+        date: '',
+        hasEntry: false,
+        isInRange: false
+      });
+    }
+
+    return paddedGrid;
   };
 
   const gridData = generateGrid();
+  const daysOfWeek = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
   return (
     <View style={tw`flex-1 bg-[#F5E8C7] p-6`}>
@@ -109,17 +131,43 @@ export default function GratitudeScreen({ navigation }) {
         <Text style={tw`text-[#1A1A1A] text-center text-lg font-medium`}>Save Gratitude</Text>
       </TouchableOpacity>
 
-      <Text style={tw`text-[#1A1A1A] text-xl font-bold mb-4`}>Past 30 Days</Text>
-      <ScrollView horizontal>
-        <View style={tw`flex-row flex-wrap`}>
-          {gridData.map((day, index) => (
-            <View
-              key={index}
-              style={tw`w-8 h-8 m-1 rounded ${day.hasEntry ? 'bg-[#D3C4A5]' : 'bg-[#F5E8C7]'} border border-[#D3C4A5]`}
-            />
-          ))}
-        </View>
-      </ScrollView>
+      <Text style={tw`text-[#1A1A1A] text-xl font-bold mb-2`}>Past 30 Days</Text>
+      <View style={tw`flex-row justify-between mb-2`}>
+        {daysOfWeek.map((day, index) => (
+          <Text key={index} style={tw`text-[#1A1A1A] text-sm font-bold w-[14%] text-center`}>
+            {day}
+          </Text>
+        ))}
+      </View>
+      <View style={tw`flex-row flex-wrap justify-between`}>
+        {gridData.map((day, index) => (
+          <View
+            key={index}
+            style={tw`w-[14%] h-10 mb-2 rounded ${day.isInRange ? (day.hasEntry ? 'bg-[#D3C4A5]' : 'bg-[#F5E8C7]') : 'bg-gray-200'} border border-[#D3C4A5] flex items-center justify-center`}
+          >
+            {day.isInRange && (
+              <Text style={tw`text-[#1A1A1A] text-xs`}>
+                {new Date(day.date).getDate()}
+              </Text>
+            )}
+          </View>
+        ))}
+      </View>
+
+      <Text style={tw`text-[#1A1A1A] text-xl font-bold mt-4 mb-2`}>Your Gratitude Entries</Text>
+      <FlatList
+        data={entries}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <View style={tw`bg-white rounded-xl p-4 mb-2 border border-[#D3C4A5]`}>
+            <Text style={tw`text-[#1A1A1A] text-sm`}>
+              {item.timestamp.toLocaleDateString()} {item.timestamp.toLocaleTimeString()}
+            </Text>
+            <Text style={tw`text-[#1A1A1A] text-base`}>{item.text}</Text>
+          </View>
+        )}
+        style={tw`flex-1`}
+      />
     </View>
   );
 }
